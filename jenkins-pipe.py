@@ -1,0 +1,1 @@
+print ('HL7: Jenkins Pipeline Script')
