@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    environment {
+        GITHUB_TOKEN = credentials('gh-token')
+        DOCKERHUB_REPO = 'jeevannnnnnnn/jenkins-pipe'
+        TAG = 'latest'
+        GITHUB_REPO = 'https://github.com/Jeevandhar-mehar/jeevan.git'
+        ECR_REPO = ''
+    }
+
+    triggers {
+        pollSCM('* * * * *')
+    }
+
+    stages{
+
+        stage('Checkout') {
+            steps {
+                git(
+                    url: 'GITHUB_REPO',
+                    branch: 'main',
+                    credentialsId: 'gh-token'
+                )
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t ${DOCKERHUB_REPO}:${TAG} -f Dockerfile ."
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials-id', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    sh "echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin"
+                    sh "docker push ${DOCKERHUB_REPO}:${TAG}"
+                }
+            }
+        }
+
+        stage('Push to ECR'){
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'ecr-credentials-id', usernameVariable: 'ECR_USER', passwordVariable: 'ECR_PASS')]) {
+                    sh "aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${ECR_REPO}"
+                    sh "docker tag ${DOCKERHUB_REPO}:${TAG} ${ECR_REPO}:${TAG}"
+                    sh "docker push ${ECR_REPO}:${TAG}"
+                }
+            }
+        }
+    }
+}
